@@ -319,6 +319,13 @@ function renderDetail(){
   $("detailTitle").textContent=item.title||"";
   $("detailTags").innerHTML=(item.tags||[]).map(t=>`<span class="tag">#${escapeHtml(t)}</span>`).join("");
   $("detailSummary").textContent=item.summary||"";
+  const url = (item.url || "").trim();
+  if (url) {
+    $("detailUrl").innerHTML =
+    `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    } else {
+      $("detailUrl").textContent = "";
+    }
   $("deleteItemBtn").disabled=false;
   $("addNoteBtn").disabled=false;
 
