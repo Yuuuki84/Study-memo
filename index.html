@@ -401,7 +401,8 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   async function doLogin(){
     // 公式：Google provider + signInWithPopup でログイン [1](https://firebase.google.com/docs/auth/web/google-signin)
-    await signInWithPopup(auth, provider);
+    import { signInWithRedirect } from "firebase/auth";
+    await signInWithRedirect(auth, provider);
   }
 
   loginBtn.addEventListener("click", async ()=>{
