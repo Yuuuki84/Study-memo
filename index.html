@@ -1,47 +1,82 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>学習記録ログ v3</title>
-<style>
-body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:#0b1220;color:#e6eaf2;}
-header{padding:16px 20px;border-bottom:1px solid #22304a;position:sticky;top:0;background:#0b1220;}
-.wrap{display:grid;grid-template-columns:360px 1fr;gap:16px;padding:16px;max-width:1200px;margin:0 auto;}
-.card{background:#111a2e;border:1px solid #22304a;border-radius:12px;padding:14px;}
-input,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #2a3a5d;background:#0b1220;color:#e6eaf2;}
-textarea{min-height:88px;resize:vertical;}
-label{display:block;font-size:12px;opacity:.9;margin:10px 0 6px;}
-button{border:0;border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:600;}
-.row{display:flex;gap:10px;align-items:center;}
-.primary{background:#4f7cff;color:#081225;}
-.ghost{background:#0b1220;border:1px solid #2a3a5d;color:#e6eaf2;}
-.danger{background:#ff5b5b;color:#200;}
-.mini{padding:6px 10px;font-size:12px;border-radius:8px;}
-.list{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
-.item{padding:10px;border-radius:12px;border:1px solid #22304a;background:#0b1220;cursor:pointer;}
-.item.active{outline:2px solid #4f7cff;}
-.item h4{margin:0 0 6px;font-size:14px;}
-.muted{opacity:.75;font-size:12px;}
-.notes{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
-.note{padding:10px;border-radius:12px;border:1px solid #22304a;background:#0b1220;}
-.note .meta{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>学習記録ログ</title>
+  <style>
+    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:#0b1220;color:#e6eaf2;}
+    header{padding:16px 20px;border-bottom:1px solid #22304a;position:sticky;top:0;background:#0b1220;z-index:10;}
+    .wrap{display:grid;grid-template-columns:360px 1fr;gap:16px;padding:16px;max-width:1200px;margin:0 auto;}
+    .card{background:#111a2e;border:1px solid #22304a;border-radius:12px;padding:14px;}
+    input,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #2a3a5d;background:#0b1220;color:#e6eaf2;}
+    textarea{min-height:88px;resize:vertical;}
+    label{display:block;font-size:12px;opacity:.9;margin:10px 0 6px;}
+    button{border:0;border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:600;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .primary{background:#4f7cff;color:#081225;}
+    .ghost{background:#0b1220;border:1px solid #2a3a5d;color:#e6eaf2;}
+    .danger{background:#ff5b5b;color:#200;}
+    .mini{padding:6px 10px;font-size:12px;border-radius:8px;}
+    .list{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+    .item{padding:10px;border-radius:12px;border:1px solid #22304a;background:#0b1220;cursor:pointer;}
+    .item.active{outline:2px solid #4f7cff;}
+    .item h4{margin:0 0 6px;font-size:14px;}
+    .muted{opacity:.75;font-size:12px;}
+    .tag{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #2a3a5d;font-size:12px;opacity:.9;margin-right:6px;}
+    .notes{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+    .note{padding:10px;border-radius:12px;border:1px solid #22304a;background:#0b1220;}
+    .note .meta{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
+    /* ✅ 改行を表示で保持（要点・メモ） */
+    #detailSummary, .note-text { white-space: pre-wrap; }
 
-/* ✅ 行間（改行）を正しく表示（安全に textContent のまま） */
-#detailSummary,
-.note .note-text{
-  white-space: pre-wrap;
-}
-
-@media (max-width:900px){.wrap{grid-template-columns:1fr;}}
-</style>
+    /* ログインオーバーレイ（UIは邪魔しない） */
+    #loginOverlay{
+      position:fixed; inset:0; display:none;
+      background:rgba(0,0,0,.55);
+      z-index:9999;
+      align-items:center; justify-content:center;
+      padding:16px;
+    }
+    #loginBox{
+      width:min(560px, 100%);
+      background:#111a2e; border:1px solid #22304a;
+      border-radius:12px; padding:16px;
+    }
+    #loginBox h2{margin:0 0 8px;}
+    #loginBox .muted{line-height:1.4;}
+    @media (max-width:900px){.wrap{grid-template-columns:1fr;}}
+  </style>
 </head>
 
 <body>
+<!-- ログイン必須表示（未ログイン時に出る） -->
+<div id="loginOverlay">
+  <div id="loginBox">
+    <h2>ログインが必要です</h2>
+    <p class="muted">
+      このアプリは Google ログイン後に、あなたの UID に紐づいてメモを保存・復元します。<br>
+      ※ブラウザのポップアップブロックを解除してください（必要な場合）。
+    </p>
+    <div class="row" style="margin-top:12px;">
+      <button id="googleLoginBtn" class="primary" style="flex:1;">Googleでログイン</button>
+      <button id="loginCancelBtn" class="ghost">閉じる</button>
+    </div>
+    <p class="muted" style="margin-top:10px;">
+      「毎回アクセス時にログインを経由」させたい場合は、認証状態の永続性を inMemory にしています（リロードで消えます）。[2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
+    </p>
+  </div>
+</div>
+
 <header>
   <div class="row" style="justify-content:space-between;">
-    <div><b>学習記録ログ v3</b> <span class="muted">（記録＋追記メモ／local保存）</span></div>
+    <div>
+      <b>学習記録ログ</b>
+      <span class="muted">（Googleログイン必須 / local + Firebase）</span><br>
+      <span id="userStatus" class="muted">未ログイン</span>
+    </div>
     <div class="row">
+      <button id="logoutBtn" class="ghost mini" style="display:none;">ログアウト</button>
       <button id="exportBtn" class="ghost mini">エクスポート</button>
       <button id="importBtn" class="ghost mini">インポート</button>
       <button id="clearBtn" class="danger mini">全削除</button>
@@ -49,63 +84,98 @@ button{border:0;border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:
   </div>
 </header>
 
-<div class="wrap">
+<div class="wrap" id="appRoot">
+  <!-- Left -->
   <div class="card">
     <label>検索</label>
     <input id="searchInput" placeholder="タイトル、URL、タグ、メモから検索" />
 
     <hr style="border:0;border-top:1px solid #22304a; margin:14px 0;">
     <b>新規記録</b>
-    <label>タイトル（必須）</label><input id="titleInput">
-    <label>URL（任意）</label><input id="urlInput">
-    <label>タグ（任意）</label><input id="tagsInput">
-    <label>要点（任意）</label><textarea id="summaryInput"></textarea>
-    <button id="addBtn" class="primary" style="margin-top:10px;">追加</button>
+    <label>タイトル（必須）</label>
+    <input id="titleInput" placeholder="例：Entra Connect 2.5 アップグレード" />
+    <label>URL（任意）</label>
+    <input id="urlInput" placeholder="https://..." />
+    <label>タグ（任意：カンマ/空白区切り）</label>
+    <input id="tagsInput" placeholder="例：Entra, AADC, Security" />
+    <label>要点（任意）</label>
+    <textarea id="summaryInput" placeholder="要点を短くまとめる"></textarea>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="addBtn" class="primary" style="flex:1;">追加（編集時は更新）</button>
+      <button id="cancelEditBtn" class="ghost">編集解除</button>
+    </div>
 
     <hr style="border:0;border-top:1px solid #22304a; margin:14px 0;">
     <b>一覧</b>
     <div id="itemsList" class="list"></div>
   </div>
 
+  <!-- Right -->
   <div class="card">
-    <div class="row" style="justify-content:space-between;">
-      <h2 id="detailTitle">（未選択）</h2>
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h2 id="detailTitle" style="margin:0 0 6px;">（未選択）</h2>
+        <div id="detailTags" style="margin-top:8px;"></div>
+      </div>
       <button id="deleteItemBtn" class="danger mini" disabled>この記録を削除</button>
     </div>
-    <hr>
-    <div id="detailSummary" class="muted"></div>
-    <hr>
+
+    <hr style="border:0;border-top:1px solid #22304a; margin:14px 0;">
+
+    <b>要点</b>
+    <div id="detailSummary" class="muted" style="margin-top:8px;"></div>
+
+    <hr style="border:0;border-top:1px solid #22304a; margin:14px 0;">
+
+    <b>追記メモ</b>
+    <label>メモを追記</label>
     <textarea id="noteInput" placeholder="調べた内容の補足、やること、注意点など"></textarea>
-    <button id="addNoteBtn" class="primary" disabled>追記する</button>
+    <div class="row" style="margin-top:10px;">
+      <button id="addNoteBtn" class="primary" style="flex:1;" disabled>追記する</button>
+    </div>
+
     <div id="notesList" class="notes"></div>
   </div>
 </div>
 
 <script>
-/* ========= Local-first ========= */
-const STORAGE_KEY="learning_log_v1";
-const $=id=>document.getElementById(id);
-let state={items:[],selectedId:null,query:""};
-let editingId = null; // ✅ 編集モード（nullなら新規追加）
-const now=()=>Date.now();
-const uid=()=>crypto.randomUUID();
+/* =========================
+   Learning Log (local-first)
+   ========================= */
+const STORAGE_KEY = "learning_log_v1";
+const $ = (id) => document.getElementById(id);
 
-function save(){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(state.items));
-  if(window.saveToCloud){
-    // UXを壊さない：失敗しても握り潰す
-    window.saveToCloud(state.items).catch(()=>{});
-  }
+let state = { items: [], selectedId: null, query: "" };
+let editingId = null;
+
+const now = () => Date.now();
+function uid() {
+  return (crypto?.randomUUID) ? crypto.randomUUID() : `id_${now()}_${Math.random().toString(16).slice(2)}`;
 }
-function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{return[]}}
-function findItem(id){return state.items.find(x=>x.id===id)}
-
-function normalizeTags(str){
-  if(!str) return [];
-  return str.split(/[,、\s]+/).map(t=>t.trim()).filter(Boolean).slice(0,20);
+function normalizeTags(str) {
+  if (!str) return [];
+  return str.split(/[,、\s]+/).map(t => t.trim()).filter(Boolean).slice(0, 20);
+}
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+}
+function load() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return [];
+  try { const data = JSON.parse(raw); return Array.isArray(data) ? data : []; }
+  catch { return []; }
+}
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+  // Firebase は裏で（ログイン後に window.saveToCloud がセットされる）
+  window.saveToCloud?.(state.items).catch(()=>{});
 }
 
-/* ✅ 編集用：選択したアイテムをフォームに戻す */
+function findItem(id) { return state.items.find(x => x.id === id) ?? null; }
+
 function loadItemToForm(item){
   if(!item) return;
   $("titleInput").value = item.title || "";
@@ -115,27 +185,26 @@ function loadItemToForm(item){
   editingId = item.id;
 }
 
-/* 新規 or 更新 */
+function clearForm(){
+  $("titleInput").value = "";
+  $("urlInput").value = "";
+  $("tagsInput").value = "";
+  $("summaryInput").value = "";
+  editingId = null;
+}
+
 function upsertFromForm(){
   const title = $("titleInput").value;
-  const url = $("urlInput").value;
-  const tags = $("tagsInput").value;
-  const summary = $("summaryInput").value;
-
-  if(!title.trim()){
-    alert("タイトルは必須です。");
-    return;
-  }
+  if(!title.trim()){ alert("タイトルは必須です。"); return; }
 
   const payload = {
     title: title.trim(),
-    url: (url||"").trim(),
-    tags: normalizeTags(tags),
-    summary: (summary||"").replace(/\r\n/g,"\n") // ✅ 改行正規化
+    url: ($("urlInput").value||"").trim(),
+    tags: normalizeTags($("tagsInput").value||""),
+    summary: ($("summaryInput").value||"").replace(/\r\n/g,"\n")
   };
 
   if(editingId){
-    // ✅ 更新
     const item = findItem(editingId);
     if(item){
       Object.assign(item, payload);
@@ -143,91 +212,78 @@ function upsertFromForm(){
     }
     editingId = null;
   }else{
-    // ✅ 新規追加
     const item = { id: uid(), notes: [], createdAt: now(), updatedAt: now(), ...payload };
     state.items.unshift(item);
     state.selectedId = item.id;
   }
-
-  // 入力欄クリア
-  $("titleInput").value="";
-  $("urlInput").value="";
-  $("tagsInput").value="";
-  $("summaryInput").value="";
-
   save(); render();
+  clearForm();
 }
 
-/* 追記（メモ） */
-function addNoteToSelected(){
-  const cur = findItem(state.selectedId);
-  if(!cur) return;
-  const text = ($("noteInput").value||"").replace(/\r\n/g,"\n").trim(); // ✅ 改行正規化
-  if(!text) return;
-
-  cur.notes.unshift({ id: uid(), text, at: now() });
-  cur.updatedAt = now();
-  $("noteInput").value="";
-  save(); render();
-}
-
-/* 削除 */
 function deleteSelected(){
-  if(!state.selectedId) return;
+  const id = state.selectedId;
+  if(!id) return;
   if(!confirm("この記録を削除します。よろしいですか？")) return;
-  state.items = state.items.filter(x=>x.id!==state.selectedId);
+  state.items = state.items.filter(x=>x.id!==id);
   state.selectedId = state.items[0]?.id ?? null;
-  editingId = null;
   save(); render();
 }
 
-/* 一覧レンダー（検索対応） */
-function renderList(){
+function addNoteToSelected(){
+  const item = findItem(state.selectedId);
+  if(!item) return;
+  const text = ($("noteInput").value||"").replace(/\r\n/g,"\n").trim();
+  if(!text) return;
+  item.notes.unshift({ id: uid(), text, at: now() });
+  item.updatedAt = now();
+  $("noteInput").value = "";
+  save(); render();
+}
+
+function filteredItems() {
   const q = (state.query||"").trim().toLowerCase();
-  const items = !q ? state.items : state.items.filter(item=>{
+  if (!q) return state.items;
+  return state.items.filter(item => {
     const hay = [
-      item.title,
-      item.url,
-      item.summary,
-      (item.tags||[]).join(" "),
+      item.title,item.url,item.summary,(item.tags||[]).join(" "),
       (item.notes||[]).map(n=>n.text).join(" ")
     ].join(" ").toLowerCase();
     return hay.includes(q);
   });
+}
 
-  $("itemsList").innerHTML = items.map(i=>`
-    <div class="item ${i.id===state.selectedId?"active":""}" data-id="${i.id}">
-      <h4>${escapeHtml(i.title)}</h4>
-      <div class="muted">更新: ${new Date(i.updatedAt).toLocaleString()}</div>
+function renderList(){
+  const list = $("itemsList");
+  const items = filteredItems();
+  list.innerHTML = items.map(item => `
+    <div class="item ${item.id===state.selectedId?"active":""}" data-id="${item.id}">
+      <h4>${escapeHtml(item.title)}</h4>
+      <div class="muted">更新: ${new Date(item.updatedAt).toLocaleString()}</div>
     </div>
   `).join("");
 }
 
-/* 詳細レンダー */
 function renderDetail(){
-  const cur = findItem(state.selectedId);
-  if(!cur){
+  const item = findItem(state.selectedId);
+  if(!item){
     $("detailTitle").textContent="（未選択）";
+    $("detailTags").innerHTML="";
     $("detailSummary").textContent="";
     $("notesList").innerHTML="";
     $("addNoteBtn").disabled=true;
     $("deleteItemBtn").disabled=true;
     return;
   }
-
-  $("detailTitle").textContent=cur.title;
-  // ✅ 改行保持：textContent + CSS pre-wrap
-  $("detailSummary").textContent=cur.summary||"";
-
-  $("addNoteBtn").disabled=false;
+  $("detailTitle").textContent=item.title||"";
+  $("detailTags").innerHTML=(item.tags||[]).map(t=>`<span class="tag">#${escapeHtml(t)}</span>`).join("");
+  $("detailSummary").textContent=item.summary||"";
   $("deleteItemBtn").disabled=false;
+  $("addNoteBtn").disabled=false;
 
-  $("notesList").innerHTML = (cur.notes||[]).map(n=>`
+  $("notesList").innerHTML=(item.notes||[]).map(n=>`
     <div class="note">
       <div class="note-text">${escapeHtml(n.text)}</div>
-      <div class="meta">
-        <span class="muted">${new Date(n.at).toLocaleString()}</span>
-      </div>
+      <div class="meta"><span class="muted">${new Date(n.at).toLocaleString()}</span></div>
     </div>
   `).join("");
 }
@@ -237,132 +293,185 @@ function render(){
   renderDetail();
 }
 
-/* 安全なエスケープ（innerHTMLで出す箇所のため） */
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#39;");
-}
-
-/* ===== エクスポート/インポート ===== */
-function exportJson(){
-  const blob=new Blob([JSON.stringify(state.items,null,2)],{type:"application/json"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=`learning-log-${new Date().toISOString().slice(0,10)}.json`;
+/* export/import */
+function exportJson() {
+  const data = JSON.stringify(state.items, null, 2);
+  const blob = new Blob([data], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `learning-log-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  URL.revokeObjectURL(url);
 }
-function importJson(file){
-  const r=new FileReader();
-  r.onload=()=>{
-    try{
-      const d=JSON.parse(r.result);
-      if(!Array.isArray(d)) throw 0;
-      state.items=d;
-      state.selectedId=d[0]?.id??null;
-      editingId=null;
-      save();render();
+function importJson(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data)) throw new Error("invalid");
+      state.items = data;
+      state.selectedId = state.items[0]?.id ?? null;
+      save(); render();
       alert("インポートしました。");
-    }catch{
-      alert("インポートに失敗しました。");
+    } catch {
+      alert("インポートに失敗しました（JSON形式を確認してください）。");
     }
   };
-  r.readAsText(file);
+  reader.readAsText(file);
 }
 
+/* init */
 document.addEventListener("DOMContentLoaded",()=>{
-  state.items=load();
-  state.selectedId=state.items[0]?.id??null;
+  state.items = load();
+  state.selectedId = state.items[0]?.id ?? null;
   render();
 
-  // ✅ 追加/更新（編集対応）
-  $("addBtn").onclick = upsertFromForm;
+  $("addBtn").addEventListener("click", upsertFromForm);
+  $("cancelEditBtn").addEventListener("click", () => { clearForm(); });
 
-  // ✅ 一覧クリック → 詳細表示 + 編集フォームに反映
-  $("itemsList").onclick = (e)=>{
-    const row=e.target.closest(".item");
+  $("itemsList").addEventListener("click", (e)=>{
+    const row = e.target.closest(".item");
     if(!row) return;
-    state.selectedId=row.dataset.id;
-    const item=findItem(state.selectedId);
-    loadItemToForm(item); // ✅ 編集機能
+    state.selectedId = row.dataset.id;
+    loadItemToForm(findItem(state.selectedId)); // 編集用にフォーム反映
     render();
-  };
+  });
 
-  // ✅ 追記
-  $("addNoteBtn").onclick = addNoteToSelected;
+  $("deleteItemBtn").addEventListener("click", deleteSelected);
+  $("addNoteBtn").addEventListener("click", addNoteToSelected);
 
-  // ✅ 削除
-  $("deleteItemBtn").onclick = deleteSelected;
+  $("searchInput").addEventListener("input",(e)=>{
+    state.query = e.target.value ?? "";
+    renderList();
+  });
 
-  // ✅ 検索
-  $("searchInput").oninput = (e)=>{ state.query=e.target.value; renderList(); };
+  $("exportBtn").addEventListener("click", exportJson);
 
-  // ✅ エクスポート
-  $("exportBtn").onclick = exportJson;
+  $("importBtn").addEventListener("click", ()=>{
+    const input = document.createElement("input");
+    input.type="file";
+    input.accept="application/json";
+    input.onchange=()=>{ const f=input.files?.[0]; if(f) importJson(f); };
+    input.click();
+  });
 
-  // ✅ インポート
-  $("importBtn").onclick = ()=>{
-    const i=document.createElement("input");
-    i.type="file"; i.accept="application/json";
-    i.onchange=()=>i.files[0]&&importJson(i.files[0]);
-    i.click();
-  };
-
-  // ✅ 全削除
-  $("clearBtn").onclick = ()=>{
-    if(confirm("すべて削除しますか？")){
-      state.items=[]; state.selectedId=null; editingId=null;
-      save(); render();
-    }
-  };
+  $("clearBtn").addEventListener("click", ()=>{
+    if(!confirm("すべて削除します。よろしいですか？")) return;
+    state.items=[]; state.selectedId=null; editingId=null;
+    save(); render();
+  });
 });
 </script>
 
-<!-- ===== Firebase（裏） ===== -->
+<!-- ================= Firebase: Google Login + Firestore Sync ================= -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signInWithPopup, signOut,
+    GoogleAuthProvider, setPersistence,
+    inMemoryPersistence, browserSessionPersistence
+  } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-const firebaseConfig={
-  apiKey:"AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
-  authDomain:"project-memo-5465f.firebaseapp.com",
-  projectId:"project-memo-5465f"
-};
+  // Firebase config（あなたの値）
+  const firebaseConfig = {
+    apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
+    authDomain: "project-memo-5465f.firebaseapp.com",
+    projectId: "project-memo-5465f"
+  };
 
-const app=initializeApp(firebaseConfig);
-const auth=getAuth(app);
-const db=getFirestore(app);
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-// ✅ 匿名認証（ログインUIなし）[3](https://microsoft.sharepoint.com/teams/Azure2/_layouts/15/Doc.aspx?action=edit&mobileredirect=true&wdorigin=Sharepoint&DefaultItemOpen=1&sourcedoc={5ddbe20b-16ea-4768-ae79-112e7e8d362d}&wd=target(/AzureAD/Account and Sync/Sync/1. Sync - Connect General.one/)&wdpartid={d8729a1f-12dd-0ea5-0581-0f37b2bf6116}{1}&wdsectionfileid={09612ca1-d92d-493a-bd84-b501754c881f})
-await signInAnonymously(auth);
+  // 🔐 認証永続性：毎回アクセス時にログイン経由にしたいなら inMemory（リロードで消える）[2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
+  // もし「タブを閉じるまで維持」でよければ browserSessionPersistence に切り替え可能 [2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
+  await setPersistence(auth, inMemoryPersistence);
 
-auth.onAuthStateChanged(async user=>{
-  if(!user) return;
+  const provider = new GoogleAuthProvider();
+  // Googleログイン時にアカウント選択を促す（同一ブラウザで複数アカウントがある場合に便利）
+  provider.setCustomParameters({ prompt: "select_account" }); // Googleサインインのフローは公式で popup/redirect をサポート [1](https://firebase.google.com/docs/auth/web/google-signin)
 
-  const ref=doc(db,"learnLogs",user.uid);
+  const loginOverlay = document.getElementById("loginOverlay");
+  const loginBtn = document.getElementById("googleLoginBtn");
+  const cancelBtn = document.getElementById("loginCancelBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const userStatus = document.getElementById("userStatus");
 
-  // 🔹 初回起動（localが空ならクラウドから復元）
-  try{
-    const snap = await getDoc(ref);
-    if(snap.exists() && (!Array.isArray(state.items) || state.items.length===0)){
-      state.items = snap.data().items || [];
-      state.selectedId = state.items[0]?.id ?? null;
-      render();
-    }
-  }catch(e){
-    // 失敗しても local-first を壊さない
+  async function doLogin(){
+    // 公式：Google provider + signInWithPopup でログイン [1](https://firebase.google.com/docs/auth/web/google-signin)
+    await signInWithPopup(auth, provider);
   }
 
-  // 🔹 裏保存：local保存後に呼ばれる
-  window.saveToCloud = async (items)=>{
-    await setDoc(ref,{items,updatedAt:Date.now()});
-  };
-});
+  loginBtn.addEventListener("click", async ()=>{
+    try{ await doLogin(); }
+    catch(e){
+      alert("ログインに失敗しました。ポップアップがブロックされていないか確認してください。");
+      console.error(e);
+    }
+  });
+  cancelBtn.addEventListener("click", ()=>{ loginOverlay.style.display="none"; });
+  logoutBtn.addEventListener("click", async ()=>{
+    await signOut(auth);
+  });
+
+  onAuthStateChanged(auth, async (user) => {
+    if(!user){
+      // 未ログイン → ログイン画面を表示
+      userStatus.textContent = "未ログイン（Googleログインが必要）";
+      logoutBtn.style.display = "none";
+      loginOverlay.style.display = "flex";
+      window.saveToCloud = undefined;
+      return;
+    }
+
+    // ログイン済み
+    userStatus.textContent = `ログイン中: ${user.email ?? user.uid}`;
+    logoutBtn.style.display = "inline-block";
+    loginOverlay.style.display = "none";
+
+    // Firestore: ユーザー UID ごとに保存
+    const ref = doc(db, "learnLogs", user.uid);
+
+    // 🔄 クラウド → ローカル復元（local が空のときだけ）
+    try{
+      const snap = await getDoc(ref);
+      if(snap.exists()){
+        const cloudItems = snap.data().items || [];
+        const cloudUpdated = snap.data().updatedAt || 0;
+        const localRaw = localStorage.getItem("learning_log_v1");
+        const localItems = localRaw ? JSON.parse(localRaw) : [];
+
+        // ローカルが空ならクラウドを採用
+        if(!Array.isArray(localItems) || localItems.length===0){
+          state.items = cloudItems;
+          state.selectedId = state.items[0]?.id ?? null;
+          render();
+          localStorage.setItem("learning_log_v1", JSON.stringify(state.items));
+        } else {
+          // ローカルが既にある場合：クラウドが新しければ上書き（最小ルール）
+          const localMax = Math.max(...(localItems.map(x=>x.updatedAt||0)), 0);
+          if(cloudUpdated > localMax){
+            state.items = cloudItems;
+            state.selectedId = state.items[0]?.id ?? null;
+            render();
+            localStorage.setItem("learning_log_v1", JSON.stringify(state.items));
+          }
+        }
+      }
+    }catch(e){
+      console.error("Cloud load failed:", e);
+      // local-first を壊さない
+    }
+
+    // 🔼 ローカル → クラウド保存（save() から呼ばれる）
+    window.saveToCloud = async (items)=>{
+      // ドキュメント更新：items と updatedAt を保存
+      await setDoc(ref, { items, updatedAt: Date.now() });
+    };
+  });
 </script>
+
 </body>
 </html>
