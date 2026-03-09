@@ -55,15 +55,15 @@
   <div id="loginBox">
     <h2>ログインが必要です</h2>
     <p class="muted">
-      このアプリは Google ログイン後に、あなたの UID に紐づいてメモを保存・復元します。<br>
-      ※ポップアップ方式（signInWithPopup）でログインします。
+      Google ログイン後に UID に紐づいてクラウド保存できます。<br>
+      ※この構成では「クラウド同期」は手動（ボタン押下時）です。
     </p>
     <div class="row" style="margin-top:12px;">
       <button id="googleLoginBtn" class="primary" style="flex:1;">Googleでログイン</button>
       <button id="loginCancelBtn" class="ghost">閉じる</button>
     </div>
     <p class="muted" style="margin-top:10px;">
-      もしログインが始まらない場合：ブラウザの「ポップアップブロック」を許可してください（このサイト）。
+      ログインが始まらない場合：ポップアップブロックを許可してください（このサイト）。
     </p>
   </div>
 </div>
@@ -72,11 +72,17 @@
   <div class="row" style="justify-content:space-between;">
     <div>
       <b>学習記録ログ</b>
-      <span class="muted">（Googleログイン必須 / local + Firebase）</span><br>
-      <span id="userStatus" class="muted">未ログイン</span>
+      <span class="muted">（local-first / 手動クラウド同期）</span><br>
+      <span id="userStatus" class="muted">未ログイン</span><br>
+      <span id="syncStatus" class="muted">同期状態: 未同期（ローカルのみ）</span>
     </div>
     <div class="row">
       <button id="logoutBtn" class="ghost mini" style="display:none;">ログアウト</button>
+
+      <!-- ✅ 手動同期ボタン -->
+      <button id="syncBtn" class="ghost mini" disabled>クラウド同期</button>
+      <button id="restoreBtn" class="ghost mini" disabled>クラウドから復元</button>
+
       <button id="exportBtn" class="ghost mini">エクスポート</button>
       <button id="importBtn" class="ghost mini">インポート</button>
       <button id="clearBtn" class="danger mini">全削除</button>
@@ -144,6 +150,8 @@
    Learning Log (local-first)
    ========================= */
 const STORAGE_KEY = "learning_log_v1";
+const DIRTY_KEY   = "learning_log_dirty";
+const LASTSYNC_KEY= "learning_log_last_sync";
 const $ = (id) => document.getElementById(id);
 
 let state = { items: [], selectedId: null, query: "" };
@@ -165,15 +173,43 @@ function escapeHtml(s) {
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#39;");
 }
+function formatDateTime(ms){
+  if(!ms) return "—";
+  const d = new Date(ms);
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+}
+
+function isDirty(){ return localStorage.getItem(DIRTY_KEY) === "true"; }
+function markDirty(){
+  localStorage.setItem(DIRTY_KEY, "true");
+  updateSyncStatus();
+}
+function clearDirty(){
+  localStorage.setItem(DIRTY_KEY, "false");
+  updateSyncStatus();
+}
+function setLastSync(ts){
+  localStorage.setItem(LASTSYNC_KEY, String(ts));
+  updateSyncStatus();
+}
+function updateSyncStatus(){
+  const dirty = isDirty();
+  const last = Number(localStorage.getItem(LASTSYNC_KEY) || "0");
+  $("syncStatus").textContent =
+    `同期状態: ${dirty ? "未同期（ローカルのみ）" : "同期済み"} / 最終同期: ${formatDateTime(last)}`;
+}
+
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return [];
   try { const data = JSON.parse(raw); return Array.isArray(data) ? data : []; }
   catch { return []; }
 }
-function save() {
+
+/* ✅ ローカル保存のみ（自動クラウド同期はしない） */
+function saveLocalOnly() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
-  window.saveToCloud?.(state.items).catch(()=>{});
+  markDirty();
 }
 
 function findItem(id) { return state.items.find(x => x.id === id) ?? null; }
@@ -218,7 +254,7 @@ function upsertFromForm(){
     state.items.unshift(item);
     state.selectedId = item.id;
   }
-  save(); render();
+  saveLocalOnly(); render();
   clearForm();
 }
 
@@ -228,7 +264,7 @@ function deleteSelected(){
   if(!confirm("この記録を削除します。よろしいですか？")) return;
   state.items = state.items.filter(x=>x.id!==id);
   state.selectedId = state.items[0]?.id ?? null;
-  save(); render();
+  saveLocalOnly(); render();
 }
 
 function addNoteToSelected(){
@@ -239,7 +275,7 @@ function addNoteToSelected(){
   item.notes.unshift({ id: uid(), text, at: now() });
   item.updatedAt = now();
   $("noteInput").value = "";
-  save(); render();
+  saveLocalOnly(); render();
 }
 
 function filteredItems() {
@@ -260,7 +296,7 @@ function renderList(){
   list.innerHTML = items.map(item => `
     <div class="item ${item.id===state.selectedId?"active":""}" data-id="${item.id}">
       <h4>${escapeHtml(item.title)}</h4>
-      <div class="muted">更新: ${new Date(item.updatedAt).toLocaleString()}</div>
+      <div class="muted">更新: ${formatDateTime(item.updatedAt)}</div>
     </div>
   `).join("");
 }
@@ -285,15 +321,12 @@ function renderDetail(){
   $("notesList").innerHTML=(item.notes||[]).map(n=>`
     <div class="note">
       <div class="note-text">${escapeHtml(n.text)}</div>
-      <div class="meta"><span class="muted">${new Date(n.at).toLocaleString()}</span></div>
+      <div class="meta"><span class="muted">${formatDateTime(n.at)}</span></div>
     </div>
   `).join("");
 }
 
-function render(){
-  renderList();
-  renderDetail();
-}
+function render(){ renderList(); renderDetail(); }
 
 /* export/import */
 function exportJson() {
@@ -314,7 +347,7 @@ function importJson(file) {
       if (!Array.isArray(data)) throw new Error("invalid");
       state.items = data;
       state.selectedId = state.items[0]?.id ?? null;
-      save(); render();
+      saveLocalOnly(); render();
       alert("インポートしました。");
     } catch {
       alert("インポートに失敗しました（JSON形式を確認してください）。");
@@ -325,13 +358,19 @@ function importJson(file) {
 
 /* init */
 document.addEventListener("DOMContentLoaded",()=>{
-  // file:// 直開きは OAuth が失敗しやすいので警告
-  if (location.protocol === "file:") {
-    console.warn("file:// 直開きです。OAuthが失敗しやすいため http://localhost で開くことを推奨します。");
+  if(location.protocol === "file:"){
+    console.warn("file:// 直開きです。OAuthが失敗する場合は http://localhost で開くことを推奨します。");
   }
 
+  // 初期状態
   state.items = load();
   state.selectedId = state.items[0]?.id ?? null;
+
+  // 初回は未同期扱い（過去に同期済みなら dirty=false のまま）
+  if(localStorage.getItem(DIRTY_KEY) === null){
+    localStorage.setItem(DIRTY_KEY, "true");
+  }
+  updateSyncStatus();
   render();
 
   $("addBtn").addEventListener("click", upsertFromForm);
@@ -366,12 +405,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("clearBtn").addEventListener("click", ()=>{
     if(!confirm("すべて削除します。よろしいですか？")) return;
     state.items=[]; state.selectedId=null; editingId=null;
-    save(); render();
+    saveLocalOnly(); render();
   });
 });
 </script>
 
-<!-- ================= Firebase: Google Login + Firestore Sync (Popup) ================= -->
+<!-- ================= Firebase: Google Login + Firestore Sync (Manual) ================= -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import {
@@ -380,7 +419,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-  // ✅ あなたの Firebase config
+  // Firebase config（あなたの値）
   const firebaseConfig = {
     apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
     authDomain: "project-memo-5465f.firebaseapp.com",
@@ -391,8 +430,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // ✅ ログイン状態はブラウザに保持（何度もログインを求められにくい）
-  // （永続性の種類は Firebase 公式の persistence の説明に対応）[2](https://microsoftapc.sharepoint.com/teams/AzureIDConcentrix/_layouts/15/Doc.aspx?action=edit&mobileredirect=true&wdorigin=Sharepoint&DefaultItemOpen=1&sourcedoc={59724b5e-544d-4c4c-a2b8-db75024cd6d6}&wd=target(/SE list/尾道/Close/My 過去事例 (Pre,Uni\).one/)&wdpartid={c96c88fe-d312-05c3-2adf-74a16d63ae4f}{1}&wdsectionfileid={7a06d65b-227f-445c-b8de-6cdb5cf20285})
+  // ログイン状態を保持（同一ブラウザで再ログイン頻度を下げる）
   await setPersistence(auth, browserLocalPersistence);
 
   const provider = new GoogleAuthProvider();
@@ -404,28 +442,98 @@ document.addEventListener("DOMContentLoaded",()=>{
   const logoutBtn = document.getElementById("logoutBtn");
   const userStatus = document.getElementById("userStatus");
 
+  const syncBtn = document.getElementById("syncBtn");
+  const restoreBtn = document.getElementById("restoreBtn");
+
+  let cloudRef = null;
+
   loginBtn.addEventListener("click", async ()=>{
     try{
-      // ✅ Google サインインは popup/redirect に対応（ここでは popup 使用）[1](https://qiita.com/youtoy/items/195487dc9b4d4636af89)
       await signInWithPopup(auth, provider);
     }catch(e){
       alert(`ログインに失敗しました。\n${e?.code ?? ""}\n${e?.message ?? ""}`);
       console.error(e);
     }
   });
-
   cancelBtn.addEventListener("click", ()=>{ loginOverlay.style.display="none"; });
+  logoutBtn.addEventListener("click", async ()=>{ await signOut(auth); });
 
-  logoutBtn.addEventListener("click", async ()=>{
-    await signOut(auth);
-  });
+  // ✅ 手動クラウド同期
+  async function syncToCloud(){
+    if(!cloudRef){ alert("ログインしてください。"); return; }
+    if(localStorage.getItem("learning_log_dirty") !== "true"){
+      alert("同期する変更はありません（同期済み）。");
+      return;
+    }
+    syncBtn.disabled = true;
+    try{
+      const items = JSON.parse(localStorage.getItem("learning_log_v1") || "[]");
+      await setDoc(cloudRef, { items, updatedAt: Date.now() });
+      localStorage.setItem("learning_log_dirty","false");
+      localStorage.setItem("learning_log_last_sync", String(Date.now()));
+      alert("クラウド同期が完了しました。");
+    }catch(e){
+      alert(`同期に失敗しました。\n${e?.code ?? ""}\n${e?.message ?? ""}`);
+      console.error(e);
+    }finally{
+      syncBtn.disabled = false;
+      // 画面の同期表示を更新
+      const evt = new Event("storage"); window.dispatchEvent(evt);
+      // 直接呼ぶ
+      const el = document.getElementById("syncStatus");
+      if(el){
+        const last = Number(localStorage.getItem("learning_log_last_sync")||"0");
+        const dirty = localStorage.getItem("learning_log_dirty")==="true";
+        el.textContent = `同期状態: ${dirty ? "未同期（ローカルのみ）" : "同期済み"} / 最終同期: ${last ? new Date(last).toLocaleString() : "—"}`;
+      }
+    }
+  }
+
+  // ✅ 手動クラウド復元（上書き）
+  async function restoreFromCloud(){
+    if(!cloudRef){ alert("ログインしてください。"); return; }
+    if(!confirm("クラウドの内容でローカルを上書きします。よろしいですか？")) return;
+
+    restoreBtn.disabled = true;
+    try{
+      const snap = await getDoc(cloudRef);
+      if(!snap.exists()){
+        alert("クラウドにデータがありません。");
+        return;
+      }
+      const items = snap.data().items || [];
+      localStorage.setItem("learning_log_v1", JSON.stringify(items));
+      localStorage.setItem("learning_log_dirty","false");
+      localStorage.setItem("learning_log_last_sync", String(Date.now()));
+      // 画面に反映
+      state.items = items;
+      state.selectedId = state.items[0]?.id ?? null;
+      render();
+      alert("クラウドから復元しました。");
+    }catch(e){
+      alert(`復元に失敗しました。\n${e?.code ?? ""}\n${e?.message ?? ""}`);
+      console.error(e);
+    }finally{
+      restoreBtn.disabled = false;
+      const el = document.getElementById("syncStatus");
+      if(el){
+        const last = Number(localStorage.getItem("learning_log_last_sync")||"0");
+        el.textContent = `同期状態: 同期済み / 最終同期: ${last ? new Date(last).toLocaleString() : "—"}`;
+      }
+    }
+  }
+
+  syncBtn.addEventListener("click", syncToCloud);
+  restoreBtn.addEventListener("click", restoreFromCloud);
 
   onAuthStateChanged(auth, async (user) => {
     if(!user){
       userStatus.textContent = "未ログイン（Googleログインが必要）";
       logoutBtn.style.display = "none";
       loginOverlay.style.display = "flex";
-      window.saveToCloud = undefined;
+      cloudRef = null;
+      syncBtn.disabled = true;
+      restoreBtn.disabled = true;
       return;
     }
 
@@ -433,38 +541,33 @@ document.addEventListener("DOMContentLoaded",()=>{
     logoutBtn.style.display = "inline-block";
     loginOverlay.style.display = "none";
 
-    const ref = doc(db, "learnLogs", user.uid);
+    // Firestore: 1ユーザー=1ドキュメント（learnLogs/<uid>）
+    cloudRef = doc(db, "learnLogs", user.uid);
 
-    // クラウド→ローカル復元（ローカルが空 or クラウドが新しい場合）
+    // ローカルが空ならクラウドから自動復元（安全）
     try{
-      const snap = await getDoc(ref);
-      if(snap.exists()){
-        const cloudItems = snap.data().items || [];
-        const cloudUpdated = snap.data().updatedAt || 0;
-
-        const localRaw = localStorage.getItem("learning_log_v1");
-        const localItems = localRaw ? JSON.parse(localRaw) : [];
-        const localMax = Array.isArray(localItems)
-          ? Math.max(...localItems.map(x=>x.updatedAt||0), 0)
-          : 0;
-
-        if(!Array.isArray(localItems) || localItems.length===0 || cloudUpdated > localMax){
-          state.items = cloudItems;
+      const localRaw = localStorage.getItem("learning_log_v1");
+      const localItems = localRaw ? JSON.parse(localRaw) : [];
+      if(!Array.isArray(localItems) || localItems.length === 0){
+        const snap = await getDoc(cloudRef);
+        if(snap.exists()){
+          const items = snap.data().items || [];
+          localStorage.setItem("learning_log_v1", JSON.stringify(items));
+          localStorage.setItem("learning_log_dirty","false");
+          localStorage.setItem("learning_log_last_sync", String(Date.now()));
+          state.items = items;
           state.selectedId = state.items[0]?.id ?? null;
           render();
-          localStorage.setItem("learning_log_v1", JSON.stringify(state.items));
         }
       }
     }catch(e){
-      console.error("Cloud load failed:", e);
+      console.error("Cloud check failed:", e);
     }
 
-    // ローカル→クラウド保存（save()から呼ばれる）
-    window.saveToCloud = async (items)=>{
-      await setDoc(ref, { items, updatedAt: Date.now() });
-    };
+    // 手動同期ボタンを有効化
+    syncBtn.disabled = false;
+    restoreBtn.disabled = false;
   });
 </script>
-
 </body>
 </html>
