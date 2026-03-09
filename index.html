@@ -30,7 +30,7 @@
     /* ✅ 改行を表示で保持（要点・メモ） */
     #detailSummary, .note-text { white-space: pre-wrap; }
 
-    /* ログインオーバーレイ（UIは邪魔しない） */
+    /* ログインオーバーレイ */
     #loginOverlay{
       position:fixed; inset:0; display:none;
       background:rgba(0,0,0,.55);
@@ -56,14 +56,14 @@
     <h2>ログインが必要です</h2>
     <p class="muted">
       このアプリは Google ログイン後に、あなたの UID に紐づいてメモを保存・復元します。<br>
-      ※ブラウザのポップアップブロックを解除してください（必要な場合）。
+      ※ポップアップではなく「リダイレクト方式」でログインします（ページ遷移します）。
     </p>
     <div class="row" style="margin-top:12px;">
       <button id="googleLoginBtn" class="primary" style="flex:1;">Googleでログイン</button>
       <button id="loginCancelBtn" class="ghost">閉じる</button>
     </div>
     <p class="muted" style="margin-top:10px;">
-      「毎回アクセス時にログインを経由」させたい場合は、認証状態の永続性を inMemory にしています（リロードで消えます）。[2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
+      ※ログイン状態は「タブを閉じるまで保持」（session）にしています。
     </p>
   </div>
 </div>
@@ -157,10 +157,14 @@ function normalizeTags(str) {
   if (!str) return [];
   return str.split(/[,、\s]+/).map(t => t.trim()).filter(Boolean).slice(0, 20);
 }
+/* ✅ 正しい HTML エスケープ */
 function escapeHtml(s) {
   return String(s)
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
 }
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -170,7 +174,6 @@ function load() {
 }
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
-  // Firebase は裏で（ログイン後に window.saveToCloud がセットされる）
   window.saveToCloud?.(state.items).catch(()=>{});
 }
 
@@ -184,7 +187,6 @@ function loadItemToForm(item){
   $("summaryInput").value = item.summary || "";
   editingId = item.id;
 }
-
 function clearForm(){
   $("titleInput").value = "";
   $("urlInput").value = "";
@@ -334,7 +336,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const row = e.target.closest(".item");
     if(!row) return;
     state.selectedId = row.dataset.id;
-    loadItemToForm(findItem(state.selectedId)); // 編集用にフォーム反映
+    loadItemToForm(findItem(state.selectedId));
     render();
   });
 
@@ -364,17 +366,15 @@ document.addEventListener("DOMContentLoaded",()=>{
 });
 </script>
 
-<!-- ================= Firebase: Google Login + Firestore Sync ================= -->
+<!-- ================= Firebase: Google Login + Firestore Sync (Redirect) ================= -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import {
-    getAuth, onAuthStateChanged, signInWithPopup, signOut,
-    GoogleAuthProvider, setPersistence,
-    inMemoryPersistence, browserSessionPersistence
+    getAuth, onAuthStateChanged, signInWithRedirect, signOut,
+    GoogleAuthProvider, setPersistence, browserSessionPersistence
   } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-  // Firebase config（あなたの値）
   const firebaseConfig = {
     apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
     authDomain: "project-memo-5465f.firebaseapp.com",
@@ -385,13 +385,11 @@ document.addEventListener("DOMContentLoaded",()=>{
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // 🔐 認証永続性：毎回アクセス時にログイン経由にしたいなら inMemory（リロードで消える）[2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
-  // もし「タブを閉じるまで維持」でよければ browserSessionPersistence に切り替え可能 [2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
-  await setPersistence(auth, inMemoryPersistence);
+  // ✅ Redirect と相性がよい session を採用（タブを閉じるまで保持）[2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
+  await setPersistence(auth, browserSessionPersistence);
 
   const provider = new GoogleAuthProvider();
-  // Googleログイン時にアカウント選択を促す（同一ブラウザで複数アカウントがある場合に便利）
-  provider.setCustomParameters({ prompt: "select_account" }); // Googleサインインのフローは公式で popup/redirect をサポート [1](https://firebase.google.com/docs/auth/web/google-signin)
+  provider.setCustomParameters({ prompt: "select_account" }); // Google での認証（redirect/popup対応）[1](https://firebase.google.com/docs/auth/web/google-signin)
 
   const loginOverlay = document.getElementById("loginOverlay");
   const loginBtn = document.getElementById("googleLoginBtn");
@@ -399,27 +397,23 @@ document.addEventListener("DOMContentLoaded",()=>{
   const logoutBtn = document.getElementById("logoutBtn");
   const userStatus = document.getElementById("userStatus");
 
-  async function doLogin(){
-    // 公式：Google provider + signInWithPopup でログイン [1](https://firebase.google.com/docs/auth/web/google-signin)
-    import { signInWithRedirect } from "firebase/auth";
-    await signInWithRedirect(auth, provider);
-  }
-
   loginBtn.addEventListener("click", async ()=>{
-    try{ await doLogin(); }
-    catch(e){
-      alert("ログインに失敗しました。ポップアップがブロックされていないか確認してください。");
+    try{
+      await signInWithRedirect(auth, provider); // [1](https://firebase.google.com/docs/auth/web/google-signin)
+    }catch(e){
+      alert("ログイン開始に失敗しました。");
       console.error(e);
     }
   });
+
   cancelBtn.addEventListener("click", ()=>{ loginOverlay.style.display="none"; });
+
   logoutBtn.addEventListener("click", async ()=>{
     await signOut(auth);
   });
 
   onAuthStateChanged(auth, async (user) => {
     if(!user){
-      // 未ログイン → ログイン画面を表示
       userStatus.textContent = "未ログイン（Googleログインが必要）";
       logoutBtn.style.display = "none";
       loginOverlay.style.display = "flex";
@@ -427,48 +421,38 @@ document.addEventListener("DOMContentLoaded",()=>{
       return;
     }
 
-    // ログイン済み
     userStatus.textContent = `ログイン中: ${user.email ?? user.uid}`;
     logoutBtn.style.display = "inline-block";
     loginOverlay.style.display = "none";
 
-    // Firestore: ユーザー UID ごとに保存
     const ref = doc(db, "learnLogs", user.uid);
 
-    // 🔄 クラウド → ローカル復元（local が空のときだけ）
+    // クラウド→ローカル復元：ローカルが空、またはクラウドが新しい場合
     try{
       const snap = await getDoc(ref);
       if(snap.exists()){
         const cloudItems = snap.data().items || [];
         const cloudUpdated = snap.data().updatedAt || 0;
+
         const localRaw = localStorage.getItem("learning_log_v1");
         const localItems = localRaw ? JSON.parse(localRaw) : [];
+        const localMax = Array.isArray(localItems)
+          ? Math.max(...localItems.map(x=>x.updatedAt||0), 0)
+          : 0;
 
-        // ローカルが空ならクラウドを採用
-        if(!Array.isArray(localItems) || localItems.length===0){
+        if(!Array.isArray(localItems) || localItems.length===0 || cloudUpdated > localMax){
           state.items = cloudItems;
           state.selectedId = state.items[0]?.id ?? null;
           render();
           localStorage.setItem("learning_log_v1", JSON.stringify(state.items));
-        } else {
-          // ローカルが既にある場合：クラウドが新しければ上書き（最小ルール）
-          const localMax = Math.max(...(localItems.map(x=>x.updatedAt||0)), 0);
-          if(cloudUpdated > localMax){
-            state.items = cloudItems;
-            state.selectedId = state.items[0]?.id ?? null;
-            render();
-            localStorage.setItem("learning_log_v1", JSON.stringify(state.items));
-          }
         }
       }
     }catch(e){
       console.error("Cloud load failed:", e);
-      // local-first を壊さない
     }
 
-    // 🔼 ローカル → クラウド保存（save() から呼ばれる）
+    // ローカル→クラウド保存（save()から呼ばれる）
     window.saveToCloud = async (items)=>{
-      // ドキュメント更新：items と updatedAt を保存
       await setDoc(ref, { items, updatedAt: Date.now() });
     };
   });
