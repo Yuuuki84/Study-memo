@@ -27,7 +27,7 @@
     .notes{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
     .note{padding:10px;border-radius:12px;border:1px solid #22304a;background:#0b1220;}
     .note .meta{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
-    /* ✅ 改行を表示で保持（要点・メモ） */
+    /* ✅ 改行保持（要点・メモ） */
     #detailSummary, .note-text { white-space: pre-wrap; }
 
     /* ログインオーバーレイ */
@@ -56,14 +56,14 @@
     <h2>ログインが必要です</h2>
     <p class="muted">
       このアプリは Google ログイン後に、あなたの UID に紐づいてメモを保存・復元します。<br>
-      ※ポップアップではなく「リダイレクト方式」でログインします（ページ遷移します）。
+      ※ポップアップ方式（signInWithPopup）でログインします。
     </p>
     <div class="row" style="margin-top:12px;">
       <button id="googleLoginBtn" class="primary" style="flex:1;">Googleでログイン</button>
       <button id="loginCancelBtn" class="ghost">閉じる</button>
     </div>
     <p class="muted" style="margin-top:10px;">
-      ※ログイン状態は「タブを閉じるまで保持」（session）にしています。
+      もしログインが始まらない場合：ブラウザの「ポップアップブロック」を許可してください（このサイト）。
     </p>
   </div>
 </div>
@@ -157,7 +157,6 @@ function normalizeTags(str) {
   if (!str) return [];
   return str.split(/[,、\s]+/).map(t => t.trim()).filter(Boolean).slice(0, 20);
 }
-/* ✅ 正しい HTML エスケープ */
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&","&amp;")
@@ -187,6 +186,7 @@ function loadItemToForm(item){
   $("summaryInput").value = item.summary || "";
   editingId = item.id;
 }
+
 function clearForm(){
   $("titleInput").value = "";
   $("urlInput").value = "";
@@ -325,6 +325,11 @@ function importJson(file) {
 
 /* init */
 document.addEventListener("DOMContentLoaded",()=>{
+  // file:// 直開きは OAuth が失敗しやすいので警告
+  if (location.protocol === "file:") {
+    console.warn("file:// 直開きです。OAuthが失敗しやすいため http://localhost で開くことを推奨します。");
+  }
+
   state.items = load();
   state.selectedId = state.items[0]?.id ?? null;
   render();
@@ -366,15 +371,16 @@ document.addEventListener("DOMContentLoaded",()=>{
 });
 </script>
 
-<!-- ================= Firebase: Google Login + Firestore Sync (Redirect) ================= -->
+<!-- ================= Firebase: Google Login + Firestore Sync (Popup) ================= -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import {
-    getAuth, onAuthStateChanged, signInWithRedirect, signOut,
-    GoogleAuthProvider, setPersistence, browserSessionPersistence
+    getAuth, onAuthStateChanged, signInWithPopup, signOut,
+    GoogleAuthProvider, setPersistence, browserLocalPersistence
   } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
+  // ✅ あなたの Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
     authDomain: "project-memo-5465f.firebaseapp.com",
@@ -385,11 +391,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // ✅ Redirect と相性がよい session を採用（タブを閉じるまで保持）[2](https://firebase.google.com/docs/auth/web/auth-state-persistence)
-  await setPersistence(auth, browserSessionPersistence);
+  // ✅ ログイン状態はブラウザに保持（何度もログインを求められにくい）
+  // （永続性の種類は Firebase 公式の persistence の説明に対応）[2](https://microsoftapc.sharepoint.com/teams/AzureIDConcentrix/_layouts/15/Doc.aspx?action=edit&mobileredirect=true&wdorigin=Sharepoint&DefaultItemOpen=1&sourcedoc={59724b5e-544d-4c4c-a2b8-db75024cd6d6}&wd=target(/SE list/尾道/Close/My 過去事例 (Pre,Uni\).one/)&wdpartid={c96c88fe-d312-05c3-2adf-74a16d63ae4f}{1}&wdsectionfileid={7a06d65b-227f-445c-b8de-6cdb5cf20285})
+  await setPersistence(auth, browserLocalPersistence);
 
   const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" }); // Google での認証（redirect/popup対応）[1](https://firebase.google.com/docs/auth/web/google-signin)
+  provider.setCustomParameters({ prompt: "select_account" });
 
   const loginOverlay = document.getElementById("loginOverlay");
   const loginBtn = document.getElementById("googleLoginBtn");
@@ -399,9 +406,10 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   loginBtn.addEventListener("click", async ()=>{
     try{
-      await signInWithRedirect(auth, provider); // [1](https://firebase.google.com/docs/auth/web/google-signin)
+      // ✅ Google サインインは popup/redirect に対応（ここでは popup 使用）[1](https://qiita.com/youtoy/items/195487dc9b4d4636af89)
+      await signInWithPopup(auth, provider);
     }catch(e){
-      alert("ログイン開始に失敗しました。");
+      alert(`ログインに失敗しました。\n${e?.code ?? ""}\n${e?.message ?? ""}`);
       console.error(e);
     }
   });
@@ -427,7 +435,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     const ref = doc(db, "learnLogs", user.uid);
 
-    // クラウド→ローカル復元：ローカルが空、またはクラウドが新しい場合
+    // クラウド→ローカル復元（ローカルが空 or クラウドが新しい場合）
     try{
       const snap = await getDoc(ref);
       if(snap.exists()){
