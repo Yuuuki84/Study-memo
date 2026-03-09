@@ -1,4 +1,3 @@
-#s
 # 📘 学習記録ログ（Learning Log）
 
 **local-first × 手動クラウド同期** を採用した、  
