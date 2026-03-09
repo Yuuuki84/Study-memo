@@ -131,6 +131,7 @@
 
     <b>URL</b>
     <div id="detailUrl" class="muted" style="margin-top:6px;"></div>
+
     <hr style="border:0;border-top:1px solid #22304a; margin:14px 0;">
 
     <b>要点</b>
@@ -169,6 +170,8 @@ function normalizeTags(str) {
   if (!str) return [];
   return str.split(/[,、\s]+/).map(t => t.trim()).filter(Boolean).slice(0, 20);
 }
+
+/* ✅ 修正：正しい HTML エスケープ */
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&","&amp;")
@@ -177,6 +180,7 @@ function escapeHtml(s) {
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#39;");
 }
+
 function formatDateTime(ms){
   if(!ms) return "—";
   const d = new Date(ms);
@@ -298,7 +302,7 @@ function renderList(){
   const list = $("itemsList");
   const items = filteredItems();
   list.innerHTML = items.map(item => `
-    <div class="item ${item.id===state.selectedId?"active":""}" data-id="${item.id}">
+    <div class="item ${item.id===state.selectedId?"active":""}" data-id="${escapeHtml(item.id)}">
       <h4>${escapeHtml(item.title)}</h4>
       <div class="muted">更新: ${formatDateTime(item.updatedAt)}</div>
     </div>
@@ -311,21 +315,39 @@ function renderDetail(){
     $("detailTitle").textContent="（未選択）";
     $("detailTags").innerHTML="";
     $("detailSummary").textContent="";
+    $("detailUrl").textContent="";
     $("notesList").innerHTML="";
     $("addNoteBtn").disabled=true;
     $("deleteItemBtn").disabled=true;
     return;
   }
+
   $("detailTitle").textContent=item.title||"";
   $("detailTags").innerHTML=(item.tags||[]).map(t=>`<span class="tag">#${escapeHtml(t)}</span>`).join("");
   $("detailSummary").textContent=item.summary||"";
-  const url = (item.url || "").trim();
-  if (url) {
-    $("detailUrl").innerHTML =
-    `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+
+  /* ✅ 修正：URLは innerHTML 直書きしない（DOM生成で安全に） */
+  const rawUrl = (item.url || "").trim();
+  const box = $("detailUrl");
+  box.innerHTML = "";
+
+  if (rawUrl) {
+    const isHttp = /^https?:\/\//i.test(rawUrl);
+    if (isHttp) {
+      const a = document.createElement("a");
+      a.href = rawUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = rawUrl;
+      box.appendChild(a);
     } else {
-      $("detailUrl").textContent = "";
+      // 形式が怪しい場合はテキスト表示のみ（クリック不可）
+      box.textContent = rawUrl;
     }
+  } else {
+    box.textContent = "";
+  }
+
   $("deleteItemBtn").disabled=false;
   $("addNoteBtn").disabled=false;
 
@@ -488,9 +510,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       console.error(e);
     }finally{
       syncBtn.disabled = false;
-      // 画面の同期表示を更新
-      const evt = new Event("storage"); window.dispatchEvent(evt);
-      // 直接呼ぶ
+      // syncStatus表示の更新（local側関数を直接呼べないため最低限の更新）
       const el = document.getElementById("syncStatus");
       if(el){
         const last = Number(localStorage.getItem("learning_log_last_sync")||"0");
