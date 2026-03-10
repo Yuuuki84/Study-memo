@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
     getAuth, onAuthStateChanged, signInWithPopup, signOut,
     GoogleAuthProvider, setPersistence, browserLocalPersistence
   } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
@@ -116,6 +116,83 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
 
   $("publishBtn").addEventListener("click", publishToPublic);
 
+  /* ===== GUEST PUBLIC VIEW ===== */
+  let guestQuery = "";
+
+  function escHtml(s){
+    return String(s||"")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;")
+      .replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+
+  function renderGuestPublicList(docs){
+    const q = guestQuery.trim().toLowerCase();
+    const container = $("guestPublicList");
+
+    // 全 items を展開してフィルタ
+    let allItems = [];
+    docs.forEach(d => {
+      const data = d.data();
+      (data.items || []).forEach(item => {
+        allItems.push({ ...item, _ownerUid: data.ownerUid });
+      });
+    });
+
+    if(q){
+      allItems = allItems.filter(item => {
+        const hay = [
+          item.title,
+          (item.tags||[]).join(" "),
+          item.summary||"",
+          (item.urls||[]).join(" ")
+        ].join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    if(allItems.length === 0){
+      container.innerHTML = `<p class="muted">${q ? "該当するメモがありません" : "公開されているメモはありません"}</p>`;
+      return;
+    }
+
+    container.innerHTML = allItems.map(item => `
+      <div class="card" style="margin-bottom:0;">
+        <div class="row" style="justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:6px;">
+          <h3 style="margin:0; font-size:15px; word-break:break-all; flex:1;">${escHtml(item.title)}</h3>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            ${(item.tags||[]).map(t=>`<span class="tag">#${escHtml(t)}</span>`).join("")}
+          </div>
+        </div>
+        ${item.summary ? `<div class="muted" style="margin-top:8px; white-space:pre-wrap; font-size:13px;">${escHtml(item.summary)}</div>` : ""}
+        ${(item.urls||[]).length ? `
+          <div style="margin-top:8px;">
+            ${(item.urls).map(u=>`<div style="margin-bottom:4px;"><a href="${escHtml(u)}" target="_blank" rel="noopener noreferrer" style="font-size:12px;">${escHtml(u)}</a></div>`).join("")}
+          </div>` : ""}
+        <div class="muted" style="margin-top:8px; font-size:11px;">更新: ${item.updatedAt ? new Date(item.updatedAt).toLocaleString("ja-JP") : "—"}</div>
+      </div>
+    `).join("");
+  }
+
+  let cachedPublicDocs = [];
+
+  async function loadGuestPublicView(){
+    $("guestPublicList").innerHTML = `<p class="muted">読み込み中...</p>`;
+    try{
+      const snap = await getDocs(collection(db, "publicLogs"));
+      cachedPublicDocs = snap.docs;
+      renderGuestPublicList(cachedPublicDocs);
+    }catch(e){
+      $("guestPublicList").innerHTML = `<p class="muted" style="color:#ff5b5b;">読み込みに失敗しました: ${escHtml(e?.code ?? e?.message)}</p>`;
+    }
+  }
+
+  $("guestSearchInput").addEventListener("input", (e)=>{
+    guestQuery = e.target.value ?? "";
+    renderGuestPublicList(cachedPublicDocs);
+  });
+
+  $("guestRefreshBtn").addEventListener("click", loadGuestPublicView);
+
   onAuthStateChanged(auth, async(user)=>{
     if(!user){
       $("userStatus").textContent="ゲスト（公開データ閲覧）";
@@ -126,12 +203,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
       $("syncBtn").disabled=true;
       $("restoreBtn").disabled=true;
       $("publishBtn").disabled=true;
+      // ゲストビューに切り替え
+      $("guestView").style.display = "block";
+      $("appRoot").style.display   = "none";
+      loadGuestPublicView();
       return;
     }
     $("loginBtn").style.display="none";
       $("userStatus").textContent=`ログイン中: ${user.email??user.uid}`;
     $("logoutBtn").style.display="inline-block";
     $("loginOverlay").style.display="none";
+    // ログインビューに切り替え
+    $("guestView").style.display = "none";
+    $("appRoot").style.display   = "";
     cloudRef=doc(db,"learnLogs",user.uid);
 
     // ローカルが空ならクラウドから自動復元

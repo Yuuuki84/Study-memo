@@ -127,6 +127,25 @@
   </div>
 </header>
 
+<!-- ===== GUEST PUBLIC VIEW ===== -->
+<div id="guestView" style="display:none; padding:16px; max-width:1400px; margin:0 auto;">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+      <div>
+        <b>🌐 公開メモ一覧</b>
+        <span class="muted" style="margin-left:8px;">全ユーザーの公開済みメモを閲覧できます</span>
+      </div>
+      <div class="row" style="gap:8px;">
+        <input id="guestSearchInput" placeholder="タイトル・タグ・要点から検索" autocomplete="off" style="width:260px;" />
+        <button id="guestRefreshBtn" class="ghost mini">🔄 更新</button>
+      </div>
+    </div>
+  </div>
+  <div id="guestPublicList" style="display:flex; flex-direction:column; gap:12px;">
+    <p class="muted">読み込み中...</p>
+  </div>
+</div>
+
 <div class="wrap" id="appRoot">
    
   <!-- ===== HOW TO USE ===== -->
