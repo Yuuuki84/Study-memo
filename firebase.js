@@ -1,0 +1,123 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signInWithPopup, signOut,
+    GoogleAuthProvider, setPersistence, browserLocalPersistence
+  } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
+    authDomain: "project-memo-5465f.firebaseapp.com",
+    projectId: "project-memo-5465f"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+  await setPersistence(auth, browserLocalPersistence);
+
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt:"select_account" });
+
+  let cloudRef = null;
+  const publicRef = doc(db, "publicLogs", "default"); // ゲスト公開データ
+
+
+  $("loginBtn").addEventListener("click", ()=>{ $("loginOverlay").style.display="flex"; });
+  $("googleLoginBtn").addEventListener("click", async()=>{
+    try{ await signInWithPopup(auth, provider); }
+    catch(e){ toast(`ログイン失敗: ${e?.code??e?.message}`,"error"); }
+  });
+  $("loginCancelBtn").addEventListener("click",()=>{ $("loginOverlay").style.display="none"; });
+  $("logoutBtn").addEventListener("click", async()=>{ await signOut(auth); toast("ログアウトしました"); });
+
+  async function syncToCloud(){
+    if(!cloudRef){ toast("ログインしてください","warn"); return; }
+    if(!isDirty()){ toast("同期する変更はありません","warn"); return; }
+    $("syncBtn").disabled=true;
+    try{
+      autoBackup();
+      const payload={ items:state.items, trash:state.trash, updatedAt:Date.now() };
+      await setDoc(cloudRef, payload);
+      localStorage.setItem(DIRTY_KEY,"false");
+      localStorage.setItem(LASTSYNC_KEY, String(Date.now()));
+      pushSyncLog(`クラウド同期完了 (${state.items.length}件)`);
+      toast("クラウド同期完了","success");
+      updateSyncStatus();
+    }catch(e){
+      pushSyncLog(`同期失敗: ${e?.code??e?.message}`);
+      toast(`同期失敗: ${e?.code??e?.message}`,"error");
+    }finally{ $("syncBtn").disabled=false; updateSyncStatus(); }
+  }
+
+  async function restoreFromCloud(){
+    if(!cloudRef){ toast("ログインしてください","warn"); return; }
+    if(!confirm("クラウドの内容でローカルを上書きします。よろしいですか？")) return;
+    $("restoreBtn").disabled=true;
+    try{
+      autoBackup();
+      const snap=await getDoc(cloudRef);
+      if(!snap.exists()){ toast("クラウドにデータがありません","warn"); return; }
+      const d=snap.data();
+      const items=(d.items||[]).map(x=>{ if(!Array.isArray(x.urls)){ const u=(x.url||"").trim(); x.urls=u?[u]:[]; delete x.url; } if(x.starred===undefined) x.starred=false; return x; });
+      const trash=(d.trash||[]).map(x=>{ if(!Array.isArray(x.urls)){ const u=(x.url||"").trim(); x.urls=u?[u]:[]; delete x.url; } if(x.starred===undefined) x.starred=false; return x; });
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
+      localStorage.setItem(TRASH_KEY,  JSON.stringify(trash));
+      localStorage.setItem(DIRTY_KEY,"false");
+      localStorage.setItem(LASTSYNC_KEY, String(Date.now()));
+      state.items=items; state.trash=trash;
+      state.selectedId=items[0]?.id??null;
+      pushSyncLog(`クラウドから復元 (${items.length}件)`);
+      render();
+      toast("クラウドから復元しました","success");
+    }catch(e){
+      pushSyncLog(`復元失敗: ${e?.code??e?.message}`);
+      toast(`復元失敗: ${e?.code??e?.message}`,"error");
+    }finally{ $("restoreBtn").disabled=false; updateSyncStatus(); }
+  }
+
+  $("syncBtn").addEventListener("click",syncToCloud);
+  $("restoreBtn").addEventListener("click",restoreFromCloud);
+
+  onAuthStateChanged(auth, async(user)=>{
+    if(!user){
+      $("userStatus").textContent="ゲスト（公開データ閲覧）";
+      $("loginBtn").style.display="inline-block";
+      $("logoutBtn").style.display="none";
+      $("loginOverlay").style.display="none";
+      cloudRef=null;
+      $("syncBtn").disabled=true;
+      $("restoreBtn").disabled=true;
+      return;
+    }
+    $("loginBtn").style.display="none";
+      $("userStatus").textContent=`ログイン中: ${user.email??user.uid}`;
+    $("logoutBtn").style.display="inline-block";
+    $("loginOverlay").style.display="none";
+    cloudRef=doc(db,"learnLogs",user.uid);
+
+    // ローカルが空ならクラウドから自動復元
+    try{
+      const local=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+      if(!Array.isArray(local)||local.length===0){
+        const snap=await getDoc(cloudRef);
+        if(snap.exists()){
+          const d=snap.data();
+          const items=(d.items||[]).map(x=>{ if(!Array.isArray(x.urls)){const u=(x.url||"").trim();x.urls=u?[u]:[]; delete x.url;} if(x.starred===undefined) x.starred=false; return x;});
+          const trash=(d.trash||[]).map(x=>{ if(!Array.isArray(x.urls)){const u=(x.url||"").trim();x.urls=u?[u]:[]; delete x.url;} if(x.starred===undefined) x.starred=false; return x;});
+          localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
+          localStorage.setItem(TRASH_KEY,  JSON.stringify(trash));
+          localStorage.setItem(DIRTY_KEY,"false");
+          localStorage.setItem(LASTSYNC_KEY,String(Date.now()));
+          state.items=items; state.trash=trash;
+          state.selectedId=items[0]?.id??null;
+          render();
+          pushSyncLog(`ログイン時自動復元 (${items.length}件)`);
+        }
+      }
+    }catch(e){ console.error("Cloud check failed:",e); }
+
+    $("syncBtn").disabled=false;
+    $("restoreBtn").disabled=false;
+    updateSyncStatus();
+  });
