@@ -1232,6 +1232,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   provider.setCustomParameters({ prompt:"select_account" });
 
   let cloudRef = null;
+  
+  // ✅ ゲスト用公開データ
+  const publicRef = doc(db, "publicLogs", "default");
 
   $("googleLoginBtn").addEventListener("click", async()=>{
     try{ await signInWithPopup(auth, provider); }
@@ -1311,17 +1314,52 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("syncBtn").addEventListener("click",syncToCloud);
   $("restoreBtn").addEventListener("click",restoreFromCloud);
 
-  onAuthStateChanged(auth, async(user)=>{
-    if(!user){
-      if(isGuestMode) return;  // ゲストモード中はオーバーレイを出さない
-      $("userStatus").textContent="未ログイン";
-      $("logoutBtn").style.display="none";
-      $("loginOverlay").style.display="flex";
-      cloudRef=null;
-      $("syncBtn").disabled=true;
-      $("restoreBtn").disabled=true;
-      return;
+  onAuthStateChanged(auth, async (user) => {
+
+  // ✅ ゲスト（未ログイン）：公開データを読む
+  if (!user) {
+    try {
+      const snap = await getDoc(publicRef);
+
+      if (snap.exists() && snap.data().visibility === "public") {
+        const d = snap.data();
+        state.items = d.items || [];
+        state.trash = d.trash || [];
+        state.selectedId = state.items[0]?.id ?? null;
+        render();
+      } else {
+        // 公開データがない/非公開の場合
+        state.items = [];
+        state.trash = [];
+        state.selectedId = null;
+        render();
+      }
+    } catch (e) {
+      console.error(e);
     }
+
+    $("userStatus").textContent = "ゲスト（公開データ閲覧）";
+    $("logoutBtn").style.display = "none";
+    $("loginOverlay").style.display = "none"; // ←ゲストでもログイン画面を出したいなら "flex" に
+    cloudRef = null;
+    $("syncBtn").disabled = true;
+    $("restoreBtn").disabled = true;
+
+    return; // ✅ 最重要：ここで必ず終了
+  }
+
+  // ✅ ログイン済み（あなたの個人データ/同期）
+  $("userStatus").textContent = `ログイン中: ${user.email ?? user.uid}`;
+  $("logoutBtn").style.display = "inline-block";
+  $("loginOverlay").style.display = "none";
+  cloudRef = doc(db, "learnLogs", user.uid);
+
+  $("syncBtn").disabled = false;
+  $("restoreBtn").disabled = false;
+
+  // （この下に、既存の「ローカルが空ならクラウドから自動復元」ロジックがあるならそのままでOK）
+});
+
     // ログイン成功時はゲストモード解除
     if(isGuestMode){ exitGuestMode(); isGuestMode=false; }
     $("userStatus").textContent=`ログイン中: ${user.email??user.uid}`;
