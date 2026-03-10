@@ -602,6 +602,7 @@ const COMMANDS=[
   { label:"エクスポート画面を開く",    key:"",       action:()=>{ closeCmdPalette(); $("exportModal").style.display="flex"; } },
   { label:"同期ログを開く",            key:"",       action:()=>{ closeCmdPalette(); renderSyncLog(); $("syncLogModal").style.display="flex"; } },
   { label:"クラウド同期",              key:"",       action:()=>{ closeCmdPalette(); $("syncBtn").click(); } },
+  { label:"公開 (publicLogs へ書き込み)", key:"",    action:()=>{ closeCmdPalette(); $("publishBtn").click(); } },
   { label:"Active フィルタ",           key:"",       action:()=>{ closeCmdPalette(); setFilter("active"); } },
   { label:"Star フィルタ",             key:"",       action:()=>{ closeCmdPalette(); setFilter("star"); } },
   { label:"Trash フィルタ",            key:"",       action:()=>{ closeCmdPalette(); setFilter("trash"); } },

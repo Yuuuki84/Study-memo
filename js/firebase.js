@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
     getAuth, onAuthStateChanged, signInWithPopup, signOut,
     GoogleAuthProvider, setPersistence, browserLocalPersistence
   } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
@@ -79,6 +79,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
   $("syncBtn").addEventListener("click",syncToCloud);
   $("restoreBtn").addEventListener("click",restoreFromCloud);
 
+  /* ===== PUBLISH TO PUBLIC ===== */
+  async function publishToPublic(){
+    if(!cloudRef){ toast("ログインしてください","warn"); return; }
+    if(state.items.length===0){ toast("公開するメモがありません","warn"); return; }
+    if(!confirm(`現在のメモ ${state.items.length} 件を公開します。よろしいですか？`)) return;
+
+    const user = auth.currentUser;
+    const userPublicRef = doc(db, "publicLogs", user.uid);
+    $("publishBtn").disabled = true;
+    try{
+      // 既存ドキュメントがあれば publishedAt を引き継ぐ
+      const existing = await getDoc(userPublicRef);
+      const publishedAt = existing.exists()
+        ? existing.data().publishedAt
+        : serverTimestamp();
+
+      const payload = {
+        ownerUid:    user.uid,
+        items:       state.items,
+        publishedAt: publishedAt,
+        updatedAt:   serverTimestamp(),
+        visibility:  "public"
+      };
+
+      await setDoc(userPublicRef, payload);
+      pushSyncLog(`公開完了 (${state.items.length}件)`);
+      toast(`公開しました！(${state.items.length}件)`, "success");
+    }catch(e){
+      pushSyncLog(`公開失敗: ${e?.code??e?.message}`);
+      toast(`公開失敗: ${e?.code??e?.message}`, "error");
+    }finally{
+      $("publishBtn").disabled = false;
+    }
+  }
+
+  $("publishBtn").addEventListener("click", publishToPublic);
+
   onAuthStateChanged(auth, async(user)=>{
     if(!user){
       $("userStatus").textContent="ゲスト（公開データ閲覧）";
@@ -88,6 +125,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
       cloudRef=null;
       $("syncBtn").disabled=true;
       $("restoreBtn").disabled=true;
+      $("publishBtn").disabled=true;
       return;
     }
     $("loginBtn").style.display="none";
@@ -119,5 +157,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
 
     $("syncBtn").disabled=false;
     $("restoreBtn").disabled=false;
+    $("publishBtn").disabled=false;
     updateSyncStatus();
   });
