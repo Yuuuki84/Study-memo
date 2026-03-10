@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>メモ 記録管理 v8</title>
+  <title>学習記録ログ v9</title>
   <style>
     /* ===== BASE ===== */
     *{box-sizing:border-box;}
@@ -142,19 +142,6 @@
     ::-webkit-scrollbar{width:6px;height:6px;}
     ::-webkit-scrollbar-track{background:#0b1220;}
     ::-webkit-scrollbar-thumb{background:#2a3a5d;border-radius:999px;}
-
-    /* ===== GUEST MODE ===== */
-    #guestBanner{
-      display:none;background:#1a2a18;border-bottom:1px solid #2ecc7155;
-      padding:8px 20px;font-size:12px;color:#7ee8a2;
-      position:sticky;top:0;z-index:9;
-    }
-    body.guest-mode .write-only{ display:none !important; }
-    body.guest-mode #appRoot .card:first-child hr:last-of-type ~ *{ display:none; }
-    .guest-badge{
-      background:#2ecc7122;border:1px solid #2ecc7155;color:#7ee8a2;
-      font-size:11px;padding:2px 8px;border-radius:999px;margin-left:8px;
-    }
   </style>
 </head>
 <body>
@@ -162,19 +149,11 @@
 <!-- ===== LOGIN OVERLAY ===== -->
 <div id="loginOverlay">
   <div id="loginBox">
-    <h2>ようこそ</h2>
-    <p class="muted">Google アカウントでログインすると、自分専用のクラウド同期が利用できます。<br>ゲストでも公開されている記録を <b>閲覧のみ</b> 利用できます。</p>
-    <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
-      <button id="googleLoginBtn" class="primary" style="width:100%;padding:12px;">
-        🔐 Google アカウントでログイン
-      </button>
-      <button id="guestLoginBtn" style="width:100%;padding:12px;background:#1a2540;border:1px solid #2ecc7155;color:#7ee8a2;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px;">
-        👁 ゲストとして閲覧します（読み取り専用）
-      </button>
-    </div>
-    <div style="margin-top:12px;padding:10px;background:#0b1220;border-radius:8px;border:1px solid #22304a;">
-      <p class="muted" style="margin:0 0 4px;"><b>ログイン</b>：自分のデータを追加・編集・クラウド同期できます</p>
-      <p class="muted" style="margin:0;"><b>ゲスト</b>：公開データの閲覧・検索のみ（書き込み不可）</p>
+    <h2>ログインが必要です</h2>
+    <p class="muted">Google ログイン後に UID に紐づいてクラウド保存できます。<br>※クラウド同期は手動（ボタン押下時）です。</p>
+    <div class="row" style="margin-top:12px;">
+      <button id="googleLoginBtn" class="primary" style="flex:1;">Googleでログイン</button>
+      <button id="loginCancelBtn" class="ghost">閉じる</button>
     </div>
     <p class="muted" style="margin-top:10px;">ログインが始まらない場合：ポップアップブロックを許可してください。</p>
   </div>
@@ -264,32 +243,26 @@
 <header>
   <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <div>
-      <b>メモ 記録管理 v8</b>
+      <b>学習記録ログ v9</b>
       <span class="muted" style="font-size:12px;">（A〜H 全機能実装）</span><br>
       <span id="userStatus" class="muted">未ログイン</span>
       <span id="syncStatus" class="muted"> ／ 同期状態: 未同期</span>
     </div>
     <div class="row" style="gap:6px;">
-      <button id="logoutBtn" class="ghost mini write-only" style="display:none;">ログアウト</button>
-      <button id="guestExitBtn" class="ghost mini" style="display:none;border-color:#2ecc7155;color:#7ee8a2;" onclick="exitGuestMode()">ログインへ切り替え</button>
-      <button id="syncBtn" class="ghost mini write-only" disabled>☁ クラウド同期<span id="unsyncCount"></span></button>
-      <button id="restoreBtn" class="ghost mini write-only" disabled>↓ クラウドから復元</button>
-      <button id="syncLogBtn" class="ghost mini write-only">📋 同期ログ</button>
+      <button id="loginBtn" class="ghost mini">ログイン</button>
+      <button id="logoutBtn" class="ghost mini" style="display:none;">ログアウト</button>
+      <button id="syncBtn" class="ghost mini" disabled>☁ クラウド同期<span id="unsyncCount"></span></button>
+      <button id="restoreBtn" class="ghost mini" disabled>↓ クラウドから復元</button>
+      <button id="syncLogBtn" class="ghost mini">📋 同期ログ</button>
       <button id="exportBtnOpen" class="ghost mini">↑ エクスポート</button>
-      <button id="importBtn" class="ghost mini write-only">↓ インポート</button>
-      <button id="clearBtn" class="danger mini write-only">🗑 全削除</button>
+      <button id="importBtn" class="ghost mini">↓ インポート</button>
+      <button id="clearBtn" class="danger mini">🗑 全削除</button>
     </div>
   </div>
   <div style="margin-top:6px;font-size:11px;opacity:.5;">
     ⌨ Ctrl+K：検索フォーカス ／ Ctrl+Shift+P：コマンドパレット ／ Ctrl+Enter：追加/更新 ／ Esc：編集解除
   </div>
 </header>
-
-<!-- ===== GUEST BANNER ===== -->
-<div id="guestBanner">
-  👁 ゲストモード（閲覧のみ）— 編集・同期機能は無効です
-  <button onclick="exitGuestMode()" style="margin-left:12px;background:#2ecc7122;border:1px solid #2ecc7155;color:#7ee8a2;border-radius:6px;padding:2px 10px;font-size:11px;cursor:pointer;">ログインへ切り替え</button>
-</div>
 
 <div class="wrap" id="appRoot">
   <!-- ===== LEFT ===== -->
@@ -314,7 +287,6 @@
     <!-- Tag filters -->
     <div id="tagFilterBar" style="margin-bottom:6px;"></div>
 
-    <div class="write-only">
     <hr>
     <b>新規記録</b>
 
@@ -346,7 +318,6 @@
       <button id="addBtn" class="primary" style="flex:1;">追加（編集時は更新）<kbd style="opacity:.6;font-size:10px;margin-left:6px;">Ctrl+Enter</kbd></button>
       <button id="cancelEditBtn" class="ghost">編集解除</button>
     </div>
-    </div><!-- /write-only form -->
 
     <hr>
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -364,7 +335,7 @@
         <div id="detailTags" style="margin-top:4px;"></div>
         <div id="detailMeta" class="muted" style="margin-top:4px;font-size:11px;"></div>
       </div>
-      <div class="row write-only" style="gap:6px;">
+      <div class="row" style="gap:6px;">
         <button id="starBtn" class="ghost mini" disabled>⭐ スター</button>
         <button id="softDeleteBtn" class="warn mini" disabled>🗑 ゴミ箱へ</button>
         <button id="restoreItemBtn" class="success mini" style="display:none;" disabled>♻ 復元</button>
@@ -385,14 +356,12 @@
     <hr>
 
     <b>追記メモ</b>
-    <div class="write-only">
     <label>メモを追記</label>
     <textarea id="noteInput" placeholder="調べた内容の補足、やること、注意点など"></textarea>
     <div class="row" style="margin-top:8px;">
       <button id="addNoteBtn" class="primary" style="flex:1;" disabled>追記する</button>
       <button id="openNoteModalBtn" class="ghost mini" disabled>拡大編集</button>
     </div>
-    </div><!-- /write-only note input -->
 
     <div id="notesList"></div>
   </div>
@@ -441,8 +410,11 @@ function normalizeTags(str){
 }
 function escapeHtml(s){
   return String(s)
-    .replaceAll("&","&amp;").replaceAll("<","&lt;")
-    .replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#39;');
 }
 function formatDateTime(ms){
   if(!ms) return "—";
@@ -1061,36 +1033,6 @@ document.addEventListener("keydown",(e)=>{
   }
 });
 
-/* ===== GUEST MODE ===== */
-// オーナーUID：自分の Firebase UID に差し替えてください
-const OWNER_UID = "7eApR7DO30aSVFD7ba6bfdz8g1K2";
-let isGuestMode = false;
-
-function enterGuestMode(){
-  isGuestMode = true;
-  document.body.classList.add("guest-mode");
-  $("loginOverlay").style.display = "none";
-  $("guestBanner").style.display = "block";
-  $("guestExitBtn").style.display = "inline-block";
-  $("userStatus").textContent = "👁 ゲスト閲覧中";
-  $("syncStatus").textContent = "（読み取り専用）";
-  // ゲスト時はゴミ箱フィルタを非表示
-  const trashBtn = document.querySelector('[data-filter="trash"]');
-  if(trashBtn) trashBtn.style.display = "none";
-  const dupBtn = document.querySelector('[data-filter="dup"]');
-  if(dupBtn) dupBtn.style.display = "none";
-}
-
-function exitGuestMode(){
-  isGuestMode = false;
-  document.body.classList.remove("guest-mode");
-  $("guestBanner").style.display = "none";
-  $("guestExitBtn").style.display = "none";
-  state.items = []; state.trash = []; state.selectedId = null;
-  render();
-  $("loginOverlay").style.display = "flex";
-}
-
 /* ===== INIT ===== */
 document.addEventListener("DOMContentLoaded",()=>{
   state.items = loadItems();
@@ -1232,39 +1174,16 @@ document.addEventListener("DOMContentLoaded",()=>{
   provider.setCustomParameters({ prompt:"select_account" });
 
   let cloudRef = null;
-  
-  // ✅ ゲスト用公開データ
-  const publicRef = doc(db, "publicLogs", "default");
+  const publicRef = doc(db, "publicLogs", "default"); // ゲスト公開データ
 
+
+  $("loginBtn").addEventListener("click", ()=>{ $("loginOverlay").style.display="flex"; });
   $("googleLoginBtn").addEventListener("click", async()=>{
     try{ await signInWithPopup(auth, provider); }
     catch(e){ toast(`ログイン失敗: ${e?.code??e?.message}`,"error"); }
   });
-  // ゲストボタン
-  $("guestLoginBtn").addEventListener("click", async()=>{
-    // OWNER_UID が未設定の場合は警告
-    if(OWNER_UID === "REPLACE_WITH_YOUR_UID"){
-      toast("OWNER_UID が設定されていません（index.html を編集してください）","error",6000);
-      return;
-    }
-    try{
-      toast("公開データを読み込み中…","info",2000);
-      const ownerRef = doc(db,"learnLogs", OWNER_UID);
-      const snap = await getDoc(ownerRef);
-      if(!snap.exists()){ toast("公開データがまだありません","warn"); return; }
-      const d = snap.data();
-      const normalize = x=>{ if(!Array.isArray(x.urls)){const u=(x.url||"").trim();x.urls=u?[u]:[]; delete x.url;} if(x.starred===undefined) x.starred=false; return x; };
-      state.items = (d.items||[]).map(normalize).filter(x=>!x.deletedAt);
-      state.trash  = [];
-      state.selectedId = state.items[0]?.id??null;
-      enterGuestMode();
-      render();
-      toast(`${state.items.length}件の記録を読み込みました`,"success");
-    }catch(e){
-      toast(`ゲスト読み込み失敗: ${e?.code??e?.message}`,"error");
-    }
-  });
-  $("logoutBtn").addEventListener("click", async()=>{ await signOut(auth); isGuestMode=false; document.body.classList.remove("guest-mode"); $("guestBanner").style.display="none"; $("guestExitBtn").style.display="none"; toast("ログアウトしました"); });
+  $("loginCancelBtn").addEventListener("click",()=>{ $("loginOverlay").style.display="none"; });
+  $("logoutBtn").addEventListener("click", async()=>{ await signOut(auth); toast("ログアウトしました"); });
 
   async function syncToCloud(){
     if(!cloudRef){ toast("ログインしてください","warn"); return; }
@@ -1314,55 +1233,19 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("syncBtn").addEventListener("click",syncToCloud);
   $("restoreBtn").addEventListener("click",restoreFromCloud);
 
-  onAuthStateChanged(auth, async (user) => {
-
-  // ✅ ゲスト（未ログイン）：公開データを読む
-  if (!user) {
-    try {
-      const snap = await getDoc(publicRef);
-
-      if (snap.exists() && snap.data().visibility === "public") {
-        const d = snap.data();
-        state.items = d.items || [];
-        state.trash = d.trash || [];
-        state.selectedId = state.items[0]?.id ?? null;
-        render();
-      } else {
-        // 公開データがない/非公開の場合
-        state.items = [];
-        state.trash = [];
-        state.selectedId = null;
-        render();
-      }
-    } catch (e) {
-      console.error(e);
+  onAuthStateChanged(auth, async(user)=>{
+    if(!user){
+      $("userStatus").textContent="ゲスト（公開データ閲覧）";
+      $("loginBtn").style.display="inline-block";
+      $("logoutBtn").style.display="none";
+      $("loginOverlay").style.display="none";
+      cloudRef=null;
+      $("syncBtn").disabled=true;
+      $("restoreBtn").disabled=true;
+      return;
     }
-
-    $("userStatus").textContent = "ゲスト（公開データ閲覧）";
-    $("logoutBtn").style.display = "none";
-    $("loginOverlay").style.display = "none"; // ←ゲストでもログイン画面を出したいなら "flex" に
-    cloudRef = null;
-    $("syncBtn").disabled = true;
-    $("restoreBtn").disabled = true;
-
-    return; // ✅ 最重要：ここで必ず終了
-  }
-
-  // ✅ ログイン済み（あなたの個人データ/同期）
-  $("userStatus").textContent = `ログイン中: ${user.email ?? user.uid}`;
-  $("logoutBtn").style.display = "inline-block";
-  $("loginOverlay").style.display = "none";
-  cloudRef = doc(db, "learnLogs", user.uid);
-
-  $("syncBtn").disabled = false;
-  $("restoreBtn").disabled = false;
-
-  // （この下に、既存の「ローカルが空ならクラウドから自動復元」ロジックがあるならそのままでOK）
-});
-
-    // ログイン成功時はゲストモード解除
-    if(isGuestMode){ exitGuestMode(); isGuestMode=false; }
-    $("userStatus").textContent=`ログイン中: ${user.email??user.uid}`;
+    $("loginBtn").style.display="none";
+      $("userStatus").textContent=`ログイン中: ${user.email??user.uid}`;
     $("logoutBtn").style.display="inline-block";
     $("loginOverlay").style.display="none";
     cloudRef=doc(db,"learnLogs",user.uid);
