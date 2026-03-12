@@ -6,9 +6,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
   import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyC-rZ8Hrh67Wzo62g6Afu_CVUbC7yWLrqE",
-    authDomain: "project-memo-5465f.firebaseapp.com",
-    projectId: "project-memo-5465f"
+    apiKey: "__FIREBASE_API_KEY__",
+    authDomain: "__FIREBASE_AUTH_DOMAIN__",
+    projectId: "__FIREBASE_PROJECT_ID__"
   };
 
   const app  = initializeApp(firebaseConfig);
